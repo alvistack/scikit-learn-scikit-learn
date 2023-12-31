@@ -102,3 +102,5 @@ sklearn/metrics/_pairwise_distances_reduction/_radius_neighbors.pyx
 
 # Default JupyterLite content
 jupyterlite_contents
+
+.pybuild/
