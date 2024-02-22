@@ -51,8 +51,6 @@ logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 logger.addHandler(handler)
 
-TRACE = logging.DEBUG - 5
-
 
 common_dependencies_without_coverage = [
     "python",
@@ -99,8 +97,6 @@ conda_build_metadata_list = [
             "ccache",
             "pytorch",
             "pytorch-cpu",
-            "polars",
-            "pyarrow",
             "array-api-compat",
         ],
         "package_constraints": {
@@ -159,7 +155,9 @@ conda_build_metadata_list = [
             "scipy": "min",
             "matplotlib": "min",
             "threadpoolctl": "2.2.0",
-            "cython": "min",
+            # Regression have been observed with Cython>=3.0.0.
+            # See: https://github.com/scikit-learn/scikit-learn/issues/27086
+            "cython": "<3.0.0",
         },
     },
     {
@@ -171,6 +169,9 @@ conda_build_metadata_list = [
         "package_constraints": {
             "python": "3.8",
             "blas": "[build=openblas]",
+            # Regression have been observed with Cython>=3.0.0.
+            # See: https://github.com/scikit-learn/scikit-learn/issues/27086
+            "cython": "<3.0.0",
         },
     },
     {
@@ -219,11 +220,6 @@ conda_build_metadata_list = [
             # the environment.yml. Adding python-dateutil so it is pinned
             + ["python-dateutil"]
         ),
-        "package_constraints": {
-            # Temporary pin for other dependencies to be able with deprecation
-            # warnings introduced by Python 3.12.
-            "python": "3.11",
-        },
     },
     {
         "build_name": "pypy3",
@@ -240,6 +236,9 @@ conda_build_metadata_list = [
         "package_constraints": {
             "blas": "[build=openblas]",
             "python": "3.9",
+            # Regression have been observed with Cython>=3.0.0.
+            # See: https://github.com/scikit-learn/scikit-learn/issues/27086
+            "cython": "<3.0.0",
         },
     },
     {
@@ -254,6 +253,9 @@ conda_build_metadata_list = [
         "package_constraints": {
             "python": "3.8",
             "blas": "[build=mkl]",
+            # Regression have been observed with Cython>=3.0.0.
+            # See: https://github.com/scikit-learn/scikit-learn/issues/27086
+            "cython": "<3.0.0",
         },
     },
     {
@@ -316,9 +318,9 @@ conda_build_metadata_list = [
             "python": "3.9",
             # XXX: sphinx > 6.0 does not correctly generate searchindex.js
             "sphinx": "6.0.0",
-            # seaborn 0.12.2 raises deprecation warnings appearing in the documentation
-            # We should remove this constraint when seaborn 0.13 is released
-            "pandas": "<2.1",
+            # Regression have been observed with Cython>=3.0.0.
+            # See: https://github.com/scikit-learn/scikit-learn/issues/27086
+            "cython": "<3.0.0",
         },
     },
     {
@@ -331,6 +333,9 @@ conda_build_metadata_list = [
         ) + ["pip", "ccache"],
         "package_constraints": {
             "python": "3.9",
+            # Regression have been observed with Cython>=3.0.0.
+            # See: https://github.com/scikit-learn/scikit-learn/issues/27086
+            "cython": "<3.0.0",
         },
     },
 ]
@@ -353,7 +358,9 @@ pip_build_metadata_list = [
             "pytest": "min",
             "pytest-cov": "min",
             # no pytest-xdist because it causes issue on 32bit
-            "cython": "min",
+            # Regression have been observed with Cython>=3.0.0.
+            # See: https://github.com/scikit-learn/scikit-learn/issues/27086
+            "cython": "<3.0.0",
         },
         # same Python version as in debian-32 build
         "python_version": "3.9.2",
@@ -371,7 +378,9 @@ pip_build_metadata_list = [
         "package_constraints": {
             "joblib": "min",
             "threadpoolctl": "min",
-            "cython": "min",
+            # Regression have been observed with Cython>=3.0.0.
+            # See: https://github.com/scikit-learn/scikit-learn/issues/27086
+            "cython": "<3.0.0",
         },
         "python_version": "3.10.4",
     },
@@ -379,7 +388,6 @@ pip_build_metadata_list = [
 
 
 def execute_command(command_list):
-    logger.debug(" ".join(command_list))
     proc = subprocess.Popen(
         command_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
@@ -396,7 +404,6 @@ def execute_command(command_list):
             "stdout:\n{}\n"
             "stderr:\n{}\n".format(proc.returncode, command_str, out, err)
         )
-    logger.log(TRACE, out)
     return out
 
 
@@ -456,7 +463,6 @@ def write_conda_environment(build_metadata):
     build_name = build_metadata["build_name"]
     folder_path = Path(build_metadata["folder"])
     output_path = folder_path / f"{build_name}_environment.yml"
-    logger.debug(output_path)
     output_path.write_text(content)
 
 
@@ -470,6 +476,8 @@ def conda_lock(environment_path, lock_file_path, platform):
         f"conda-lock lock --mamba --kind explicit --platform {platform} "
         f"--file {environment_path} --filename-template {lock_file_path}"
     )
+
+    logger.debug("conda-lock command: %s", command)
     execute_command(shlex.split(command))
 
 
@@ -488,7 +496,7 @@ def create_conda_lock_file(build_metadata):
 
 def write_all_conda_lock_files(build_metadata_list):
     for build_metadata in build_metadata_list:
-        logger.info(f"# Locking dependencies for {build_metadata['build_name']}")
+        logger.info(build_metadata["build_name"])
         create_conda_lock_file(build_metadata)
 
 
@@ -508,17 +516,19 @@ def write_pip_requirements(build_metadata):
     content = get_pip_requirements_content(build_metadata)
     folder_path = Path(build_metadata["folder"])
     output_path = folder_path / f"{build_name}_requirements.txt"
-    logger.debug(output_path)
     output_path.write_text(content)
 
 
 def write_all_pip_requirements(build_metadata_list):
     for build_metadata in build_metadata_list:
+        logger.info(build_metadata["build_name"])
         write_pip_requirements(build_metadata)
 
 
 def pip_compile(pip_compile_path, requirements_path, lock_file_path):
     command = f"{pip_compile_path} --upgrade {requirements_path} -o {lock_file_path}"
+
+    logger.debug("pip-compile command: %s", command)
     execute_command(shlex.split(command))
 
 
@@ -553,7 +563,6 @@ def write_pip_lock_file(build_metadata):
 
 def write_all_pip_lock_files(build_metadata_list):
     for build_metadata in build_metadata_list:
-        logger.info(f"# Locking dependencies for {build_metadata['build_name']}")
         write_pip_lock_file(build_metadata)
 
 
@@ -593,24 +602,7 @@ def check_conda_version():
     default="",
     help="Regex to restrict the builds we want to update environment and lock files",
 )
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print commands executed by the script",
-)
-@click.option(
-    "-vv",
-    "--very-verbose",
-    is_flag=True,
-    help="Print output of commands executed by the script",
-)
-def main(verbose, very_verbose, select_build):
-    if verbose:
-        logger.setLevel(logging.DEBUG)
-    if very_verbose:
-        logger.setLevel(TRACE)
-        handler.setLevel(TRACE)
+def main(select_build):
     check_conda_lock_version()
     check_conda_version()
     filtered_conda_build_metadata_list = [
@@ -618,22 +610,20 @@ def main(verbose, very_verbose, select_build):
         for each in conda_build_metadata_list
         if re.search(select_build, each["build_name"])
     ]
-    if filtered_conda_build_metadata_list:
-        logger.info("# Writing conda environments")
-        write_all_conda_environments(filtered_conda_build_metadata_list)
-        logger.info("# Writing conda lock files")
-        write_all_conda_lock_files(filtered_conda_build_metadata_list)
+    logger.info("Writing conda environments")
+    write_all_conda_environments(filtered_conda_build_metadata_list)
+    logger.info("Writing conda lock files")
+    write_all_conda_lock_files(filtered_conda_build_metadata_list)
 
     filtered_pip_build_metadata_list = [
         each
         for each in pip_build_metadata_list
         if re.search(select_build, each["build_name"])
     ]
-    if filtered_pip_build_metadata_list:
-        logger.info("# Writing pip requirements")
-        write_all_pip_requirements(filtered_pip_build_metadata_list)
-        logger.info("# Writing pip lock files")
-        write_all_pip_lock_files(filtered_pip_build_metadata_list)
+    logger.info("Writing pip requirements")
+    write_all_pip_requirements(filtered_pip_build_metadata_list)
+    logger.info("Writing pip lock files")
+    write_all_pip_lock_files(filtered_pip_build_metadata_list)
 
 
 if __name__ == "__main__":

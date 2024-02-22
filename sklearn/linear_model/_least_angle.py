@@ -22,45 +22,14 @@ from ..exceptions import ConvergenceWarning
 from ..model_selection import check_cv
 
 # mypy error: Module 'sklearn.utils' has no attribute 'arrayfuncs'
-from ..utils import (  # type: ignore
-    Bunch,
-    arrayfuncs,
-    as_float_array,
-    check_random_state,
-)
-from ..utils._metadata_requests import (
-    MetadataRouter,
-    MethodMapping,
-    _raise_for_params,
-    _routing_enabled,
-    process_routing,
-)
-from ..utils._param_validation import Hidden, Interval, StrOptions, validate_params
+from ..utils import arrayfuncs, as_float_array, check_random_state  # type: ignore
+from ..utils._param_validation import Hidden, Interval, StrOptions
 from ..utils.parallel import Parallel, delayed
 from ._base import LinearModel, LinearRegression, _deprecate_normalize, _preprocess_data
 
 SOLVE_TRIANGULAR_ARGS = {"check_finite": False}
 
 
-@validate_params(
-    {
-        "X": [np.ndarray, None],
-        "y": [np.ndarray, None],
-        "Xy": [np.ndarray, None],
-        "Gram": [StrOptions({"auto"}), "boolean", np.ndarray, None],
-        "max_iter": [Interval(Integral, 0, None, closed="left")],
-        "alpha_min": [Interval(Real, 0, None, closed="left")],
-        "method": [StrOptions({"lar", "lasso"})],
-        "copy_X": ["boolean"],
-        "eps": [Interval(Real, 0, None, closed="neither"), None],
-        "copy_Gram": ["boolean"],
-        "verbose": ["verbose"],
-        "return_path": ["boolean"],
-        "return_n_iter": ["boolean"],
-        "positive": ["boolean"],
-    },
-    prefer_skip_nested_validation=True,
-)
 def lars_path(
     X,
     y,
@@ -91,21 +60,21 @@ def lars_path(
 
     Parameters
     ----------
-    X : None or ndarray of shape (n_samples, n_features)
+    X : None or array-like of shape (n_samples, n_features)
         Input data. Note that if X is `None` then the Gram matrix must be
         specified, i.e., cannot be `None` or `False`.
 
-    y : None or ndarray of shape (n_samples,)
+    y : None or array-like of shape (n_samples,)
         Input targets.
 
     Xy : array-like of shape (n_features,) or (n_features, n_targets), \
             default=None
-        `Xy = X.T @ y` that can be precomputed. It is useful
+        `Xy = np.dot(X.T, y)` that can be precomputed. It is useful
         only when the Gram matrix is precomputed.
 
-    Gram : None, 'auto', bool, ndarray of shape (n_features, n_features), \
+    Gram : None, 'auto', array-like of shape (n_features, n_features), \
             default=None
-        Precomputed Gram matrix `X.T @ X`, if `'auto'`, the Gram
+        Precomputed Gram matrix (X' * X), if `'auto'`, the Gram
         matrix is precomputed from the given X, if there are more samples
         than features.
 
@@ -154,20 +123,20 @@ def lars_path(
 
     Returns
     -------
-    alphas : ndarray of shape (n_alphas + 1,)
+    alphas : array-like of shape (n_alphas + 1,)
         Maximum of covariances (in absolute value) at each iteration.
         `n_alphas` is either `max_iter`, `n_features`, or the
         number of nodes in the path with `alpha >= alpha_min`, whichever
         is smaller.
 
-    active : ndarray of shape (n_alphas,)
+    active : array-like of shape (n_alphas,)
         Indices of active variables at the end of the path.
 
-    coefs : ndarray of shape (n_features, n_alphas + 1)
+    coefs : array-like of shape (n_features, n_alphas + 1)
         Coefficients along the path.
 
     n_iter : int
-        Number of iterations run. Returned only if `return_n_iter` is set
+        Number of iterations run. Returned only if return_n_iter is set
         to True.
 
     See Also
@@ -215,24 +184,6 @@ def lars_path(
     )
 
 
-@validate_params(
-    {
-        "Xy": [np.ndarray],
-        "Gram": [np.ndarray],
-        "n_samples": [Interval(Integral, 0, None, closed="left")],
-        "max_iter": [Interval(Integral, 0, None, closed="left")],
-        "alpha_min": [Interval(Real, 0, None, closed="left")],
-        "method": [StrOptions({"lar", "lasso"})],
-        "copy_X": ["boolean"],
-        "eps": [Interval(Real, 0, None, closed="neither"), None],
-        "copy_Gram": ["boolean"],
-        "verbose": ["verbose"],
-        "return_path": ["boolean"],
-        "return_n_iter": ["boolean"],
-        "positive": ["boolean"],
-    },
-    prefer_skip_nested_validation=True,
-)
 def lars_path_gram(
     Xy,
     Gram,
@@ -262,13 +213,13 @@ def lars_path_gram(
 
     Parameters
     ----------
-    Xy : ndarray of shape (n_features,) or (n_features, n_targets)
-        `Xy = X.T @ y`.
+    Xy : array-like of shape (n_features,) or (n_features, n_targets)
+        Xy = np.dot(X.T, y).
 
-    Gram : ndarray of shape (n_features, n_features)
-        `Gram = X.T @ X`.
+    Gram : array-like of shape (n_features, n_features)
+        Gram = np.dot(X.T * X).
 
-    n_samples : int
+    n_samples : int or float
         Equivalent size of sample.
 
     max_iter : int, default=500
@@ -279,27 +230,27 @@ def lars_path_gram(
         regularization parameter alpha parameter in the Lasso.
 
     method : {'lar', 'lasso'}, default='lar'
-        Specifies the returned model. Select `'lar'` for Least Angle
+        Specifies the returned model. Select ``'lar'`` for Least Angle
         Regression, ``'lasso'`` for the Lasso.
 
     copy_X : bool, default=True
-        If `False`, `X` is overwritten.
+        If ``False``, ``X`` is overwritten.
 
     eps : float, default=np.finfo(float).eps
         The machine-precision regularization in the computation of the
         Cholesky diagonal factors. Increase this for very ill-conditioned
-        systems. Unlike the `tol` parameter in some iterative
+        systems. Unlike the ``tol`` parameter in some iterative
         optimization-based algorithms, this parameter does not control
         the tolerance of the optimization.
 
     copy_Gram : bool, default=True
-        If `False`, `Gram` is overwritten.
+        If ``False``, ``Gram`` is overwritten.
 
     verbose : int, default=0
         Controls output verbosity.
 
     return_path : bool, default=True
-        If `return_path==True` returns the entire path, else returns only the
+        If ``return_path==True`` returns the entire path, else returns only the
         last point of the path.
 
     return_n_iter : bool, default=False
@@ -310,26 +261,26 @@ def lars_path_gram(
         This option is only allowed with method 'lasso'. Note that the model
         coefficients will not converge to the ordinary-least-squares solution
         for small values of alpha. Only coefficients up to the smallest alpha
-        value (`alphas_[alphas_ > 0.].min()` when `fit_path=True`) reached by
+        value (``alphas_[alphas_ > 0.].min()`` when fit_path=True) reached by
         the stepwise Lars-Lasso algorithm are typically in congruence with the
         solution of the coordinate descent lasso_path function.
 
     Returns
     -------
-    alphas : ndarray of shape (n_alphas + 1,)
+    alphas : array-like of shape (n_alphas + 1,)
         Maximum of covariances (in absolute value) at each iteration.
-        `n_alphas` is either `max_iter`, `n_features` or the
-        number of nodes in the path with `alpha >= alpha_min`, whichever
+        ``n_alphas`` is either ``max_iter``, ``n_features`` or the
+        number of nodes in the path with ``alpha >= alpha_min``, whichever
         is smaller.
 
-    active : ndarray of shape (n_alphas,)
+    active : array-like of shape (n_alphas,)
         Indices of active variables at the end of the path.
 
-    coefs : ndarray of shape (n_features, n_alphas + 1)
+    coefs : array-like of shape (n_features, n_alphas + 1)
         Coefficients along the path.
 
     n_iter : int
-        Number of iterations run. Returned only if `return_n_iter` is set
+        Number of iterations run. Returned only if return_n_iter is set
         to True.
 
     See Also
@@ -1404,7 +1355,7 @@ def _lars_path_residues(
     y_test,
     Gram=None,
     copy=True,
-    method="lar",
+    method="lars",
     verbose=False,
     fit_intercept=True,
     normalize=False,
@@ -1732,7 +1683,7 @@ class LarsCV(Lars):
         return {"multioutput": False}
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X, y, **params):
+    def fit(self, X, y):
         """Fit the model using X, y as training data.
 
         Parameters
@@ -1743,23 +1694,11 @@ class LarsCV(Lars):
         y : array-like of shape (n_samples,)
             Target values.
 
-        **params : dict, default=None
-            Parameters to be passed to the CV splitter.
-
-            .. versionadded:: 1.4
-                Only available if `enable_metadata_routing=True`,
-                which can be set by using
-                ``sklearn.set_config(enable_metadata_routing=True)``.
-                See :ref:`Metadata Routing User Guide <metadata_routing>` for
-                more details.
-
         Returns
         -------
         self : object
             Returns an instance of self.
         """
-        _raise_for_params(params, self, "fit")
-
         _normalize = _deprecate_normalize(
             self.normalize, estimator_name=self.__class__.__name__
         )
@@ -1770,11 +1709,6 @@ class LarsCV(Lars):
 
         # init cross-validation generator
         cv = check_cv(self.cv, classifier=False)
-
-        if _routing_enabled():
-            routed_params = process_routing(self, "fit", **params)
-        else:
-            routed_params = Bunch(splitter=Bunch(split={}))
 
         # As we use cross-validation, the Gram matrix is not precomputed here
         Gram = self.precompute
@@ -1802,7 +1736,7 @@ class LarsCV(Lars):
                 eps=self.eps,
                 positive=self.positive,
             )
-            for train, test in cv.split(X, y, **routed_params.splitter.split)
+            for train, test in cv.split(X, y)
         )
         all_alphas = np.concatenate(list(zip(*cv_paths))[0])
         # Unique also sorts
@@ -1850,26 +1784,6 @@ class LarsCV(Lars):
             normalize=_normalize,
         )
         return self
-
-    def get_metadata_routing(self):
-        """Get metadata routing of this object.
-
-        Please check :ref:`User Guide <metadata_routing>` on how the routing
-        mechanism works.
-
-        .. versionadded:: 1.4
-
-        Returns
-        -------
-        routing : MetadataRouter
-            A :class:`~sklearn.utils.metadata_routing.MetadataRouter` encapsulating
-            routing information.
-        """
-        router = MetadataRouter(owner=self.__class__.__name__).add(
-            splitter=check_cv(self.cv),
-            method_mapping=MethodMapping().add(callee="split", caller="fit"),
-        )
-        return router
 
 
 class LassoLarsCV(LarsCV):

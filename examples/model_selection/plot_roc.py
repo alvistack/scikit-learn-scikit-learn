@@ -122,18 +122,19 @@ import matplotlib.pyplot as plt
 
 from sklearn.metrics import RocCurveDisplay
 
-display = RocCurveDisplay.from_predictions(
+RocCurveDisplay.from_predictions(
     y_onehot_test[:, class_id],
     y_score[:, class_id],
     name=f"{class_of_interest} vs the rest",
     color="darkorange",
     plot_chance_level=True,
 )
-_ = display.ax_.set(
-    xlabel="False Positive Rate",
-    ylabel="True Positive Rate",
-    title="One-vs-Rest ROC curves:\nVirginica vs (Setosa & Versicolor)",
-)
+plt.axis("square")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("One-vs-Rest ROC curves:\nVirginica vs (Setosa & Versicolor)")
+plt.legend()
+plt.show()
 
 # %%
 # ROC curve using micro-averaged OvR
@@ -157,18 +158,19 @@ print(f"y_score.ravel():\n{y_score[0:2,:].ravel()}")
 # micro-averaging is preferable over macro-averaging. In such cases, one can
 # alternatively use a weighted macro-averaging, not demoed here.
 
-display = RocCurveDisplay.from_predictions(
+RocCurveDisplay.from_predictions(
     y_onehot_test.ravel(),
     y_score.ravel(),
     name="micro-average OvR",
     color="darkorange",
     plot_chance_level=True,
 )
-_ = display.ax_.set(
-    xlabel="False Positive Rate",
-    ylabel="True Positive Rate",
-    title="Micro-averaged One-vs-Rest\nReceiver Operating Characteristic",
-)
+plt.axis("square")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("Micro-averaged One-vs-Rest\nReceiver Operating Characteristic")
+plt.legend()
+plt.show()
 
 # %%
 # In the case where the main interest is not the plot but the ROC-AUC score
@@ -284,11 +286,12 @@ for class_id, color in zip(range(n_classes), colors):
         plot_chance_level=(class_id == 2),
     )
 
-_ = ax.set(
-    xlabel="False Positive Rate",
-    ylabel="True Positive Rate",
-    title="Extension of Receiver Operating Characteristic\nto One-vs-Rest multiclass",
-)
+plt.axis("square")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("Extension of Receiver Operating Characteristic\nto One-vs-Rest multiclass")
+plt.legend()
+plt.show()
 
 # %%
 # One-vs-One multiclass ROC
@@ -364,11 +367,12 @@ for ix, (label_a, label_b) in enumerate(pair_list):
         name=f"{label_b} as positive class",
         plot_chance_level=True,
     )
-    ax.set(
-        xlabel="False Positive Rate",
-        ylabel="True Positive Rate",
-        title=f"{target_names[idx_a]} vs {label_b} ROC curves",
-    )
+    plt.axis("square")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title(f"{target_names[idx_a]} vs {label_b} ROC curves")
+    plt.legend()
+    plt.show()
 
 print(f"Macro-averaged One-vs-One ROC AUC score:\n{np.average(pair_scores):.2f}")
 
@@ -395,7 +399,7 @@ ovo_tpr = np.zeros_like(fpr_grid)
 fig, ax = plt.subplots(figsize=(6, 6))
 for ix, (label_a, label_b) in enumerate(pair_list):
     ovo_tpr += mean_tpr[ix]
-    ax.plot(
+    plt.plot(
         fpr_grid,
         mean_tpr[ix],
         label=f"Mean {label_a} vs {label_b} (AUC = {pair_scores[ix]:.2f})",
@@ -403,22 +407,20 @@ for ix, (label_a, label_b) in enumerate(pair_list):
 
 ovo_tpr /= sum(1 for pair in enumerate(pair_list))
 
-ax.plot(
+plt.plot(
     fpr_grid,
     ovo_tpr,
     label=f"One-vs-One macro-average (AUC = {macro_roc_auc_ovo:.2f})",
     linestyle=":",
     linewidth=4,
 )
-ax.plot([0, 1], [0, 1], "k--", label="Chance level (AUC = 0.5)")
-_ = ax.set(
-    xlabel="False Positive Rate",
-    ylabel="True Positive Rate",
-    title="Extension of Receiver Operating Characteristic\nto One-vs-One multiclass",
-    aspect="equal",
-    xlim=(-0.01, 1.01),
-    ylim=(-0.01, 1.01),
-)
+plt.plot([0, 1], [0, 1], "k--", label="Chance level (AUC = 0.5)")
+plt.axis("square")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("Extension of Receiver Operating Characteristic\nto One-vs-One multiclass")
+plt.legend()
+plt.show()
 
 # %%
 # We confirm that the classes "versicolor" and "virginica" are not well

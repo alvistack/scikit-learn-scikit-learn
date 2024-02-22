@@ -7,6 +7,7 @@ from math import sqrt
 
 import numpy as np
 import pytest
+from scipy.sparse import csr_matrix
 
 from sklearn import metrics, neighbors
 from sklearn.datasets import load_iris
@@ -17,7 +18,6 @@ from sklearn.utils.estimator_checks import (
     check_outlier_corruption,
     parametrize_with_checks,
 )
-from sklearn.utils.fixes import CSR_CONTAINERS
 
 # load the iris dataset
 # and randomly permute it
@@ -238,12 +238,11 @@ def test_predicted_outlier_number(expected_outliers):
         check_outlier_corruption(num_outliers, expected_outliers, y_dec)
 
 
-@pytest.mark.parametrize("csr_container", CSR_CONTAINERS)
-def test_sparse(csr_container):
+def test_sparse():
     # LocalOutlierFactor must support CSR inputs
     # TODO: compare results on dense and sparse data as proposed in:
     # https://github.com/scikit-learn/scikit-learn/pull/23585#discussion_r968388186
-    X = csr_container(iris.data)
+    X = csr_matrix(iris.data)
 
     lof = neighbors.LocalOutlierFactor(novelty=True)
     lof.fit(X)

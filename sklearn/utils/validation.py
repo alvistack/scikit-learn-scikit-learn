@@ -1,7 +1,4 @@
-"""
-The :mod:`sklearn.utils.validation` module includes functions to validate
-input and parameters within scikit-learn estimators.
-"""
+"""Utilities for input validation"""
 
 # Authors: Olivier Grisel
 #          Gael Varoquaux
@@ -14,7 +11,6 @@ input and parameters within scikit-learn estimators.
 
 import numbers
 import operator
-import sys
 import warnings
 from contextlib import suppress
 from functools import reduce, wraps
@@ -841,6 +837,9 @@ def check_array(
         # Since we converted here, we do not need to convert again later
         dtype = None
 
+    if dtype is not None and _is_numpy_namespace(xp):
+        dtype = np.dtype(dtype)
+
     if force_all_finite not in (True, False, "allow-nan"):
         raise ValueError(
             'force_all_finite should be a bool or "allow-nan". Got {!r} instead'.format(
@@ -962,19 +961,6 @@ def check_array(
                 allow_nan=force_all_finite == "allow-nan",
             )
 
-        if copy:
-            if _is_numpy_namespace(xp):
-                # only make a copy if `array` and `array_orig` may share memory`
-                if np.may_share_memory(array, array_orig):
-                    array = _asarray_with_order(
-                        array, dtype=dtype, order=order, copy=True, xp=xp
-                    )
-            else:
-                # always make a copy for non-numpy arrays
-                array = _asarray_with_order(
-                    array, dtype=dtype, order=order, copy=True, xp=xp
-                )
-
     if ensure_min_samples > 0:
         n_samples = _num_samples(array)
         if n_samples < ensure_min_samples:
@@ -993,6 +979,19 @@ def check_array(
                 % (n_features, array.shape, ensure_min_features, context)
             )
 
+    if copy:
+        if _is_numpy_namespace(xp):
+            # only make a copy if `array` and `array_orig` may share memory`
+            if np.may_share_memory(array, array_orig):
+                array = _asarray_with_order(
+                    array, dtype=dtype, order=order, copy=True, xp=xp
+                )
+        else:
+            # always make a copy for non-numpy arrays
+            array = _asarray_with_order(
+                array, dtype=dtype, order=order, copy=True, xp=xp
+            )
+
     return array
 
 
@@ -1000,9 +999,9 @@ def _check_large_sparse(X, accept_large_sparse=False):
     """Raise a ValueError if X has 64bit indices and accept_large_sparse=False"""
     if not accept_large_sparse:
         supported_indices = ["int32"]
-        if X.format == "coo":
+        if X.getformat() == "coo":
             index_keys = ["col", "row"]
-        elif X.format in ["csr", "csc", "bsr"]:
+        elif X.getformat() in ["csr", "csc", "bsr"]:
             index_keys = ["indices", "indptr"]
         else:
             return
@@ -1410,10 +1409,8 @@ def check_is_fitted(estimator, attributes=None, *, msg=None, all_or_any=all):
     raises a NotFittedError with the given message.
 
     If an estimator does not set any attributes with a trailing underscore, it
-    can define a ``__sklearn_is_fitted__`` method returning a boolean to
-    specify if the estimator is fitted or not. See
-    :ref:`sphx_glr_auto_examples_developing_estimators_sklearn_is_fitted.py`
-    for an example on how to use the API.
+    can define a ``__sklearn_is_fitted__`` method returning a boolean to specify if the
+    estimator is fitted or not.
 
     Parameters
     ----------
@@ -1947,57 +1944,44 @@ def _check_response_method(estimator, response_method):
     return prediction_method
 
 
-def _check_method_params(X, params, indices=None):
-    """Check and validate the parameters passed to a specific
-    method like `fit`.
+def _check_fit_params(X, fit_params, indices=None):
+    """Check and validate the parameters passed during `fit`.
 
     Parameters
     ----------
     X : array-like of shape (n_samples, n_features)
         Data array.
 
-    params : dict
-        Dictionary containing the parameters passed to the method.
+    fit_params : dict
+        Dictionary containing the parameters passed at fit.
 
     indices : array-like of shape (n_samples,), default=None
         Indices to be selected if the parameter has the same size as `X`.
 
     Returns
     -------
-    method_params_validated : dict
+    fit_params_validated : dict
         Validated parameters. We ensure that the values support indexing.
     """
     from . import _safe_indexing
 
-    method_params_validated = {}
-    for param_key, param_value in params.items():
+    fit_params_validated = {}
+    for param_key, param_value in fit_params.items():
         if not _is_arraylike(param_value) or _num_samples(param_value) != _num_samples(
             X
         ):
             # Non-indexable pass-through (for now for backward-compatibility).
             # https://github.com/scikit-learn/scikit-learn/issues/15805
-            method_params_validated[param_key] = param_value
+            fit_params_validated[param_key] = param_value
         else:
-            # Any other method_params should support indexing
+            # Any other fit_params should support indexing
             # (e.g. for cross-validation).
-            method_params_validated[param_key] = _make_indexable(param_value)
-            method_params_validated[param_key] = _safe_indexing(
-                method_params_validated[param_key], indices
+            fit_params_validated[param_key] = _make_indexable(param_value)
+            fit_params_validated[param_key] = _safe_indexing(
+                fit_params_validated[param_key], indices
             )
 
-    return method_params_validated
-
-
-def _is_pandas_df(X):
-    """Return True if the X is a pandas dataframe."""
-    if hasattr(X, "columns") and hasattr(X, "iloc"):
-        # Likely a pandas DataFrame, we explicitly check the type to confirm.
-        try:
-            pd = sys.modules["pandas"]
-        except KeyError:
-            return False
-        return isinstance(X, pd.DataFrame)
-    return False
+    return fit_params_validated
 
 
 def _get_feature_names(X):
@@ -2023,22 +2007,8 @@ def _get_feature_names(X):
     feature_names = None
 
     # extract feature names for support array containers
-    if _is_pandas_df(X):
-        # Make sure we can inspect columns names from pandas, even with
-        # versions too old to expose a working implementation of
-        # __dataframe__.column_names() and avoid introducing any
-        # additional copy.
-        # TODO: remove the pandas-specific branch once the minimum supported
-        # version of pandas has a working implementation of
-        # __dataframe__.column_names() that is guaranteed to not introduce any
-        # additional copy of the data without having to impose allow_copy=False
-        # that could fail with other libraries. Note: in the longer term, we
-        # could decide to instead rely on the __dataframe_namespace__ API once
-        # adopted by our minimally supported pandas version.
+    if hasattr(X, "columns"):
         feature_names = np.asarray(X.columns, dtype=object)
-    elif hasattr(X, "__dataframe__"):
-        df_protocol = X.__dataframe__()
-        feature_names = np.asarray(list(df_protocol.column_names()), dtype=object)
 
     if feature_names is None or len(feature_names) == 0:
         return

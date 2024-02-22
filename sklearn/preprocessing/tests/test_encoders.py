@@ -12,7 +12,6 @@ from sklearn.utils._testing import (
     assert_allclose,
     assert_array_equal,
 )
-from sklearn.utils.fixes import CSR_CONTAINERS
 
 
 def test_one_hot_encoder_sparse_dense():
@@ -1762,14 +1761,13 @@ def test_ordinal_encoder_handle_missing_and_unknown(X, expected_X_trans, X_test)
     assert_allclose(oe.transform(X_test), [[-1.0]])
 
 
-@pytest.mark.parametrize("csr_container", CSR_CONTAINERS)
-def test_ordinal_encoder_sparse(csr_container):
+def test_ordinal_encoder_sparse():
     """Check that we raise proper error with sparse input in OrdinalEncoder.
     Non-regression test for:
     https://github.com/scikit-learn/scikit-learn/issues/19878
     """
     X = np.array([[3, 2, 1], [0, 1, 1]])
-    X_sparse = csr_container(X)
+    X_sparse = sparse.csr_matrix(X)
 
     encoder = OrdinalEncoder()
 
@@ -1780,7 +1778,7 @@ def test_ordinal_encoder_sparse(csr_container):
         encoder.fit_transform(X_sparse)
 
     X_trans = encoder.fit_transform(X)
-    X_trans_sparse = csr_container(X_trans)
+    X_trans_sparse = sparse.csr_matrix(X_trans)
     with pytest.raises(TypeError, match=err_msg):
         encoder.inverse_transform(X_trans_sparse)
 
@@ -1979,7 +1977,7 @@ def test_one_hot_encoder_set_output():
 
     ohe.set_output(transform="pandas")
 
-    match = "Pandas output does not support sparse data. Set sparse_output=False"
+    match = "Pandas output does not support sparse data"
     with pytest.raises(ValueError, match=match):
         ohe.fit_transform(X_df)
 

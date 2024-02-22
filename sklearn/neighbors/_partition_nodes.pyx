@@ -16,8 +16,6 @@
 #  - https://en.cppreference.com/w/cpp/algorithm/nth_element.
 #  - https://github.com/scikit-learn/scikit-learn/pull/11103
 #  - https://github.com/scikit-learn/scikit-learn/pull/19473
-from cython cimport floating
-
 
 cdef extern from *:
     """
@@ -56,7 +54,7 @@ cdef extern from *:
     }
     """
     void partition_node_indices_inner[D, I](
-                const D *data,
+                D *data,
                 I *node_indices,
                 I split_dim,
                 I split_index,
@@ -65,7 +63,7 @@ cdef extern from *:
 
 
 cdef int partition_node_indices(
-        const floating *data,
+        float64_t *data,
         intp_t *node_indices,
         intp_t split_dim,
         intp_t split_index,

@@ -1,8 +1,5 @@
-"""
-The :mod:`sklearn.utils.estimator_checks` module includes various utilities to
-check the compatibility of estimators with the scikit-learn API.
-"""
-
+import importlib
+import itertools
 import pickle
 import re
 import warnings
@@ -48,14 +45,8 @@ from ..model_selection._validation import _safe_split
 from ..pipeline import make_pipeline
 from ..preprocessing import StandardScaler, scale
 from ..random_projection import BaseRandomProjection
-from ..utils._array_api import (
-    _convert_to_numpy,
-    get_namespace,
-    yield_namespace_device_dtype_combinations,
-)
-from ..utils._array_api import (
-    device as array_device,
-)
+from ..utils._array_api import _convert_to_numpy, get_namespace
+from ..utils._array_api import device as array_device
 from ..utils._param_validation import (
     InvalidParameterError,
     generate_invalid_param_val,
@@ -71,7 +62,6 @@ from ._tags import (
 )
 from ._testing import (
     SkipTest,
-    _array_api_for_tests,
     _get_args,
     assert_allclose,
     assert_allclose_dense_sparse,
@@ -143,8 +133,19 @@ def _yield_checks(estimator):
     yield check_estimator_get_tags_default_keys
 
     if tags["array_api_support"]:
-        for check in _yield_array_api_checks(estimator):
-            yield check
+        for array_namespace in ["numpy.array_api", "cupy.array_api", "cupy", "torch"]:
+            if array_namespace == "torch":
+                for device, dtype in itertools.product(
+                    ("cpu", "cuda"), ("float64", "float32")
+                ):
+                    yield partial(
+                        check_array_api_input,
+                        array_namespace=array_namespace,
+                        dtype=dtype,
+                        device=device,
+                    )
+            else:
+                yield partial(check_array_api_input, array_namespace=array_namespace)
 
 
 def _yield_classifier_checks(classifier):
@@ -306,16 +307,6 @@ def _yield_outliers_checks(estimator):
         if _safe_tags(estimator, key="requires_fit"):
             yield check_estimators_unfitted
     yield check_non_transformer_estimators_n_iter
-
-
-def _yield_array_api_checks(estimator):
-    for array_namespace, device, dtype in yield_namespace_device_dtype_combinations():
-        yield partial(
-            check_array_api_input,
-            array_namespace=array_namespace,
-            dtype=dtype,
-            device=device,
-        )
 
 
 def _yield_all_checks(estimator):
@@ -855,22 +846,35 @@ def _generate_sparse_matrix(X_csr):
 
 
 def check_array_api_input(
-    name,
-    estimator_orig,
-    array_namespace,
-    device=None,
-    dtype="float64",
-    check_values=False,
+    name, estimator_orig, *, array_namespace, device=None, dtype="float64"
 ):
-    """Check that the estimator can work consistently with the Array API
+    """Check that the array_api Array gives the same results as ndarrays."""
+    try:
+        array_mod = importlib.import_module(array_namespace)
+    except ModuleNotFoundError:
+        raise SkipTest(
+            f"{array_namespace} is not installed: not checking array_api input"
+        )
+    try:
+        import array_api_compat  # noqa
+    except ImportError:
+        raise SkipTest(
+            "array_api_compat is not installed: not checking array_api input"
+        )
 
-    By default, this just checks that the types and shapes of the arrays are
-    consistent with calling the same estimator with numpy arrays.
+    # First create an array using the chosen array module and then get the
+    # corresponding (compatibility wrapped) array namespace based on it.
+    # This is because `cupy` is not the same as the compatibility wrapped
+    # namespace of a CuPy array.
+    xp = array_api_compat.get_namespace(array_mod.asarray(1))
 
-    When check_values is True, it also checks that calling the estimator on the
-    array_api Array gives the same results as ndarrays.
-    """
-    xp, device, dtype = _array_api_for_tests(array_namespace, device, dtype)
+    if array_namespace == "torch" and device == "cuda" and not xp.has_cuda:
+        raise SkipTest("PyTorch test requires cuda, which is not available")
+    elif array_namespace in {"cupy", "cupy.array_api"}:  # pragma: nocover
+        import cupy
+
+        if cupy.cuda.runtime.getDeviceCount() == 0:
+            raise SkipTest("CuPy test requires cuda, which is not available")
 
     X, y = make_classification(random_state=42)
     X = X.astype(dtype, copy=False)
@@ -892,42 +896,33 @@ def check_array_api_input(
     est_xp = clone(est)
     with config_context(array_api_dispatch=True):
         est_xp.fit(X_xp, y_xp)
-        input_ns = get_namespace(X_xp)[0].__name__
 
     # Fitted attributes which are arrays must have the same
     # namespace as the one of the training data.
     for key, attribute in array_attributes.items():
         est_xp_param = getattr(est_xp, key)
-        with config_context(array_api_dispatch=True):
-            attribute_ns = get_namespace(est_xp_param)[0].__name__
-        assert attribute_ns == input_ns, (
-            f"'{key}' attribute is in wrong namespace, expected {input_ns} "
-            f"got {attribute_ns}"
-        )
+        assert (
+            get_namespace(est_xp_param)[0] == get_namespace(X_xp)[0]
+        ), f"'{key}' attribute is in wrong namespace"
 
         assert array_device(est_xp_param) == array_device(X_xp)
 
         est_xp_param_np = _convert_to_numpy(est_xp_param, xp=xp)
-        if check_values:
-            assert_allclose(
-                attribute,
-                est_xp_param_np,
-                err_msg=f"{key} not the same",
-                atol=np.finfo(X.dtype).eps * 100,
-            )
-        else:
-            assert attribute.shape == est_xp_param_np.shape
-            assert attribute.dtype == est_xp_param_np.dtype
+        assert_allclose(
+            attribute,
+            est_xp_param_np,
+            err_msg=f"{key} not the same",
+            atol=np.finfo(X.dtype).eps * 100,
+        )
 
     # Check estimator methods, if supported, give the same results
     methods = (
-        "score",
-        "score_samples",
         "decision_function",
         "predict",
         "predict_log_proba",
         "predict_proba",
         "transform",
+        "inverse_transform",
     )
 
     for method_name in methods:
@@ -935,83 +930,24 @@ def check_array_api_input(
         if method is None:
             continue
 
-        if method_name == "score":
-            result = method(X, y)
-            with config_context(array_api_dispatch=True):
-                result_xp = getattr(est_xp, method_name)(X_xp, y_xp)
-            # score typically returns a Python float
-            assert isinstance(result, float)
-            assert isinstance(result_xp, float)
-            if check_values:
-                assert abs(result - result_xp) < np.finfo(X.dtype).eps * 100
-            continue
-        else:
-            result = method(X)
-            with config_context(array_api_dispatch=True):
-                result_xp = getattr(est_xp, method_name)(X_xp)
-
+        result = method(X)
         with config_context(array_api_dispatch=True):
-            result_ns = get_namespace(result_xp)[0].__name__
-        assert result_ns == input_ns, (
-            f"'{method}' output is in wrong namespace, expected {input_ns}, "
-            f"got {result_ns}."
-        )
+            result_xp = getattr(est_xp, method_name)(X_xp)
+
+        assert (
+            get_namespace(result_xp)[0] == get_namespace(X_xp)[0]
+        ), f"'{method}' output is in wrong namespace"
 
         assert array_device(result_xp) == array_device(X_xp)
+
         result_xp_np = _convert_to_numpy(result_xp, xp=xp)
 
-        if check_values:
-            assert_allclose(
-                result,
-                result_xp_np,
-                err_msg=f"{method} did not the return the same result",
-                atol=np.finfo(X.dtype).eps * 100,
-            )
-        else:
-            if hasattr(result, "shape"):
-                assert result.shape == result_xp_np.shape
-                assert result.dtype == result_xp_np.dtype
-
-        if method_name == "transform" and hasattr(est, "inverse_transform"):
-            inverse_result = est.inverse_transform(result)
-            with config_context(array_api_dispatch=True):
-                invese_result_xp = est_xp.inverse_transform(result_xp)
-                inverse_result_ns = get_namespace(invese_result_xp)[0].__name__
-            assert inverse_result_ns == input_ns, (
-                "'inverse_transform' output is in wrong namespace, expected"
-                f" {input_ns}, got {inverse_result_ns}."
-            )
-
-            assert array_device(invese_result_xp) == array_device(X_xp)
-
-            invese_result_xp_np = _convert_to_numpy(invese_result_xp, xp=xp)
-            if check_values:
-                assert_allclose(
-                    inverse_result,
-                    invese_result_xp_np,
-                    err_msg="inverse_transform did not the return the same result",
-                    atol=np.finfo(X.dtype).eps * 100,
-                )
-            else:
-                assert inverse_result.shape == invese_result_xp_np.shape
-                assert inverse_result.dtype == invese_result_xp_np.dtype
-
-
-def check_array_api_input_and_values(
-    name,
-    estimator_orig,
-    array_namespace,
-    device=None,
-    dtype="float64",
-):
-    return check_array_api_input(
-        name,
-        estimator_orig,
-        array_namespace=array_namespace,
-        device=device,
-        dtype=dtype,
-        check_values=True,
-    )
+        assert_allclose(
+            result,
+            result_xp_np,
+            err_msg=f"{method} did not the return the same result",
+            atol=np.finfo(X.dtype).eps * 100,
+        )
 
 
 def check_estimator_sparse_data(name, estimator_orig):
@@ -2070,7 +2006,7 @@ def check_estimators_pickle(name, estimator_orig, readonly_memmap=False):
     if readonly_memmap:
         unpickled_estimator = create_memmap_backed_data(estimator)
     else:
-        # No need to touch the file system in that case.
+        # pickle and unpickle!
         pickled_estimator = pickle.dumps(estimator)
         module_name = estimator.__module__
         if module_name.startswith("sklearn.") and not (
@@ -2078,7 +2014,7 @@ def check_estimators_pickle(name, estimator_orig, readonly_memmap=False):
         ):
             # strict check for sklearn estimators that are not implemented in test
             # modules.
-            assert b"_sklearn_version" in pickled_estimator
+            assert b"version" in pickled_estimator
         unpickled_estimator = pickle.loads(pickled_estimator)
 
     result = dict()
@@ -4354,12 +4290,6 @@ def check_param_validation(name, estimator_orig):
                 # the method is not accessible with the current set of parameters
                 continue
 
-            err_msg = (
-                f"{name} does not raise an informative error message when the parameter"
-                f" {param_name} does not have a valid type. If any Python type is"
-                " valid, the constraint should be 'no_validation'."
-            )
-
             with raises(InvalidParameterError, match=match, err_msg=err_msg):
                 if any(
                     isinstance(X_type, str) and X_type.endswith("labels")
@@ -4387,16 +4317,6 @@ def check_param_validation(name, estimator_orig):
                 if not hasattr(estimator, method):
                     # the method is not accessible with the current set of parameters
                     continue
-
-                err_msg = (
-                    f"{name} does not raise an informative error message when the "
-                    f"parameter {param_name} does not have a valid value.\n"
-                    "Constraints should be disjoint. For instance "
-                    "[StrOptions({'a_string'}), str] is not a acceptable set of "
-                    "constraint because generating an invalid string for the first "
-                    "constraint will always produce a valid string for the second "
-                    "constraint."
-                )
 
                 with raises(InvalidParameterError, match=match, err_msg=err_msg):
                     if any(
@@ -4562,11 +4482,7 @@ def check_set_output_transform_pandas(name, transformer_orig):
         outputs_pandas = _output_from_fit_transform(transformer_pandas, name, X, df, y)
     except ValueError as e:
         # transformer does not support sparse data
-        error_message = str(e)
-        assert (
-            "Pandas output does not support sparse data." in error_message
-            or "The transformer outputs a scipy sparse matrix." in error_message
-        ), e
+        assert "Pandas output does not support sparse data." in str(e), e
         return
 
     for case in outputs_default:
@@ -4612,11 +4528,7 @@ def check_global_output_transform_pandas(name, transformer_orig):
             )
     except ValueError as e:
         # transformer does not support sparse data
-        error_message = str(e)
-        assert (
-            "Pandas output does not support sparse data." in error_message
-            or "The transformer outputs a scipy sparse matrix." in error_message
-        ), e
+        assert "Pandas output does not support sparse data." in str(e), e
         return
 
     for case in outputs_default:

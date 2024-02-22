@@ -6,6 +6,7 @@ from itertools import chain
 
 import numpy as np
 import pytest
+import scipy.sparse as sp
 
 from sklearn import config_context
 from sklearn.utils import (
@@ -34,7 +35,6 @@ from sklearn.utils._testing import (
     assert_array_equal,
     assert_no_warnings,
 )
-from sklearn.utils.fixes import CSC_CONTAINERS, CSR_CONTAINERS
 
 # toy array
 X_toy = np.arange(9).reshape((3, 3))
@@ -160,23 +160,21 @@ def test_resample_stratify_2dy():
     assert y.ndim == 2
 
 
-@pytest.mark.parametrize("csr_container", CSR_CONTAINERS)
-def test_resample_stratify_sparse_error(csr_container):
+def test_resample_stratify_sparse_error():
     # resample must be ndarray
     rng = np.random.RandomState(0)
     n_samples = 100
     X = rng.normal(size=(n_samples, 2))
     y = rng.randint(0, 2, size=n_samples)
-    stratify = csr_container(y)
+    stratify = sp.csr_matrix(y)
     with pytest.raises(TypeError, match="A sparse matrix was passed"):
         X, y = resample(X, y, n_samples=50, random_state=rng, stratify=stratify)
 
 
-@pytest.mark.parametrize("csr_container", CSR_CONTAINERS)
-def test_safe_mask(csr_container):
+def test_safe_mask():
     random_state = check_random_state(0)
     X = random_state.rand(5, 4)
-    X_csr = csr_container(X)
+    X_csr = sp.csr_matrix(X)
     mask = [False, False, True, True, True]
 
     mask = safe_mask(X, mask)
@@ -516,15 +514,14 @@ def test_shuffle_on_ndim_equals_three():
     assert set(to_tuple(A)) == S
 
 
-@pytest.mark.parametrize("csc_container", CSC_CONTAINERS)
-def test_shuffle_dont_convert_to_array(csc_container):
+def test_shuffle_dont_convert_to_array():
     # Check that shuffle does not try to convert to numpy arrays with float
     # dtypes can let any indexable datastructure pass-through.
     a = ["a", "b", "c"]
     b = np.array(["a", "b", "c"], dtype=object)
     c = [1, 2, 3]
     d = MockDataFrame(np.array([["a", 0], ["b", 1], ["c", 2]], dtype=object))
-    e = csc_container(np.arange(6).reshape(3, 2))
+    e = sp.csc_matrix(np.arange(6).reshape(3, 2))
     a_s, b_s, c_s, d_s, e_s = shuffle(a, b, c, d, e, random_state=0)
 
     assert a_s == ["c", "b", "a"]
@@ -547,6 +544,11 @@ def test_gen_even_slices():
     some_range = range(10)
     joined_range = list(chain(*[some_range[slice] for slice in gen_even_slices(10, 3)]))
     assert_array_equal(some_range, joined_range)
+
+    # check that passing negative n_chunks raises an error
+    slices = gen_even_slices(10, -1)
+    with pytest.raises(ValueError, match="gen_even_slices got n_packs=-1, must be >=1"):
+        next(slices)
 
 
 @pytest.mark.parametrize(

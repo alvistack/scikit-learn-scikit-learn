@@ -19,7 +19,7 @@ from ..exceptions import DataConversionWarning
 from . import _joblib, metadata_routing
 from ._bunch import Bunch
 from ._estimator_html_repr import estimator_html_repr
-from ._param_validation import Integral, Interval, validate_params
+from ._param_validation import Interval, validate_params
 from .class_weight import compute_class_weight, compute_sample_weight
 from .deprecation import deprecated
 from .discovery import all_estimators
@@ -77,7 +77,6 @@ __all__ = [
 
 IS_PYPY = platform.python_implementation() == "PyPy"
 _IS_32BIT = 8 * struct.calcsize("P") == 32
-_IS_WASM = platform.machine() in ["wasm32", "wasm64"]
 
 
 def _in_unstable_openblas_configuration():
@@ -113,13 +112,6 @@ def _in_unstable_openblas_configuration():
     return False
 
 
-@validate_params(
-    {
-        "X": ["array-like", "sparse matrix"],
-        "mask": ["array-like"],
-    },
-    prefer_skip_nested_validation=True,
-)
 def safe_mask(X, mask):
     """Return a mask which is safe to use on X.
 
@@ -128,7 +120,7 @@ def safe_mask(X, mask):
     X : {array-like, sparse matrix}
         Data on which to apply mask.
 
-    mask : array-like
+    mask : ndarray
         Mask to be used on X.
 
     Returns
@@ -189,7 +181,7 @@ def _array_indexing(array, key, key_dtype, axis):
         key = np.asarray(key)
     if isinstance(key, tuple):
         key = list(key)
-    return array[key, ...] if axis == 0 else array[:, key]
+    return array[key] if axis == 0 else array[:, key]
 
 
 def _pandas_indexing(X, key, key_dtype, axis):
@@ -797,14 +789,6 @@ def gen_batches(n, batch_size, *, min_batch_size=0):
         yield slice(start, n)
 
 
-@validate_params(
-    {
-        "n": [Interval(Integral, 1, None, closed="left")],
-        "n_packs": [Interval(Integral, 1, None, closed="left")],
-        "n_samples": [Interval(Integral, 1, None, closed="left"), None],
-    },
-    prefer_skip_nested_validation=True,
-)
 def gen_even_slices(n, n_packs, *, n_samples=None):
     """Generator to create `n_packs` evenly spaced slices going up to `n`.
 
@@ -844,6 +828,8 @@ def gen_even_slices(n, n_packs, *, n_samples=None):
     [slice(0, 4, None), slice(4, 7, None), slice(7, 10, None)]
     """
     start = 0
+    if n_packs < 1:
+        raise ValueError("gen_even_slices got n_packs=%s, must be >=1" % n_packs)
     for pack_num in range(n_packs):
         this_n = n // n_packs
         if pack_num < n % n_packs:
@@ -1095,11 +1081,7 @@ def is_scalar_nan(x):
     >>> is_scalar_nan([np.nan])
     False
     """
-    return (
-        not isinstance(x, numbers.Integral)
-        and isinstance(x, numbers.Real)
-        and math.isnan(x)
-    )
+    return isinstance(x, numbers.Real) and math.isnan(x)
 
 
 def _approximate_mode(class_counts, n_draws, rng):

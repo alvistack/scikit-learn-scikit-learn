@@ -3,6 +3,7 @@ import warnings
 
 import numpy as np
 import pytest
+import scipy.sparse
 from scipy.special import logsumexp
 
 from sklearn.datasets import load_digits, load_iris
@@ -20,7 +21,6 @@ from sklearn.utils._testing import (
     assert_array_almost_equal,
     assert_array_equal,
 )
-from sklearn.utils.fixes import CSR_CONTAINERS
 
 DISCRETE_NAIVE_BAYES_CLASSES = [BernoulliNB, CategoricalNB, ComplementNB, MultinomialNB]
 ALL_NAIVE_BAYES_CLASSES = DISCRETE_NAIVE_BAYES_CLASSES + [GaussianNB]
@@ -466,8 +466,7 @@ def test_discretenb_degenerate_one_class_case(
 
 
 @pytest.mark.parametrize("kind", ("dense", "sparse"))
-@pytest.mark.parametrize("csr_container", CSR_CONTAINERS)
-def test_mnnb(kind, global_random_seed, csr_container):
+def test_mnnb(kind, global_random_seed):
     # Test Multinomial Naive Bayes classification.
     # This checks that MultinomialNB implements fit and predict and returns
     # correct values for a simple toy dataset.
@@ -476,7 +475,7 @@ def test_mnnb(kind, global_random_seed, csr_container):
     if kind == "dense":
         X = X2
     elif kind == "sparse":
-        X = csr_container(X2)
+        X = scipy.sparse.csr_matrix(X2)
 
     # Check the ability to predict the learning set.
     clf = MultinomialNB()
@@ -810,8 +809,7 @@ def test_categoricalnb_min_categories_errors(min_categories, error_msg):
         clf.fit(X, y)
 
 
-@pytest.mark.parametrize("csr_container", CSR_CONTAINERS)
-def test_alpha(csr_container):
+def test_alpha():
     # Setting alpha=0 should not output nan results when p(x_i|y_j)=0 is a case
     X = np.array([[1, 0], [1, 1]])
     y = np.array([0, 1])
@@ -839,7 +837,7 @@ def test_alpha(csr_container):
     assert_array_almost_equal(nb.predict_proba(X), prob)
 
     # Test sparse X
-    X = csr_container(X)
+    X = scipy.sparse.csr_matrix(X)
     nb = BernoulliNB(alpha=0.0)
     with pytest.warns(UserWarning, match=msg):
         nb.fit(X, y)

@@ -18,7 +18,7 @@ from ._config import config_context, get_config
 from .exceptions import InconsistentVersionWarning
 from .utils import _IS_32BIT
 from .utils._estimator_html_repr import estimator_html_repr
-from .utils._metadata_requests import _MetadataRequester, _routing_enabled
+from .utils._metadata_requests import _MetadataRequester
 from .utils._param_validation import validate_parameter_constraints
 from .utils._set_output import _SetOutputMixin
 from .utils._tags import (
@@ -769,7 +769,7 @@ class ClusterMixin:
 
     _estimator_type = "clusterer"
 
-    def fit_predict(self, X, y=None, **kwargs):
+    def fit_predict(self, X, y=None):
         """
         Perform clustering on `X` and returns cluster labels.
 
@@ -781,11 +781,6 @@ class ClusterMixin:
         y : Ignored
             Not used, present for API consistency by convention.
 
-        **kwargs : dict
-            Arguments to be passed to ``fit``.
-
-            .. versionadded:: 1.4
-
         Returns
         -------
         labels : ndarray of shape (n_samples,), dtype=np.int64
@@ -793,7 +788,7 @@ class ClusterMixin:
         """
         # non-optimized default implementation; override when a better
         # method is possible for a given clustering algorithm
-        self.fit(X, **kwargs)
+        self.fit(X)
         return self.labels_
 
     def _more_tags(self):
@@ -916,33 +911,6 @@ class TransformerMixin(_SetOutputMixin):
         """
         # non-optimized default implementation; override when a better
         # method is possible for a given clustering algorithm
-
-        # we do not route parameters here, since consumers don't route. But
-        # since it's possible for a `transform` method to also consume
-        # metadata, we check if that's the case, and we raise a warning telling
-        # users that they should implement a custom `fit_transform` method
-        # to forward metadata to `transform` as well.
-        #
-        # For that, we calculate routing and check if anything would be routed
-        # to `transform` if we were to route them.
-        if _routing_enabled():
-            transform_params = self.get_metadata_routing().consumes(
-                method="transform", params=fit_params.keys()
-            )
-            if transform_params:
-                warnings.warn(
-                    (
-                        f"This object ({self.__class__.__name__}) has a `transform`"
-                        " method which consumes metadata, but `fit_transform` does not"
-                        " forward metadata to `transform`. Please implement a custom"
-                        " `fit_transform` method to forward metadata to `transform` as"
-                        " well. Alternatively, you can explicitly do"
-                        " `set_transform_request`and set all values to `False` to"
-                        " disable metadata routed to `transform`, if that's an option."
-                    ),
-                    UserWarning,
-                )
-
         if y is None:
             # fit method of arity 1 (unsupervised transformation)
             return self.fit(X, **fit_params).transform(X)
@@ -1046,7 +1014,7 @@ class OutlierMixin:
 
     _estimator_type = "outlier_detector"
 
-    def fit_predict(self, X, y=None, **kwargs):
+    def fit_predict(self, X, y=None):
         """Perform fit on X and returns labels for X.
 
         Returns -1 for outliers and 1 for inliers.
@@ -1059,44 +1027,13 @@ class OutlierMixin:
         y : Ignored
             Not used, present for API consistency by convention.
 
-        **kwargs : dict
-            Arguments to be passed to ``fit``.
-
-            .. versionadded:: 1.4
-
         Returns
         -------
         y : ndarray of shape (n_samples,)
             1 for inliers, -1 for outliers.
         """
-        # we do not route parameters here, since consumers don't route. But
-        # since it's possible for a `predict` method to also consume
-        # metadata, we check if that's the case, and we raise a warning telling
-        # users that they should implement a custom `fit_predict` method
-        # to forward metadata to `predict` as well.
-        #
-        # For that, we calculate routing and check if anything would be routed
-        # to `predict` if we were to route them.
-        if _routing_enabled():
-            transform_params = self.get_metadata_routing().consumes(
-                method="predict", params=kwargs.keys()
-            )
-            if transform_params:
-                warnings.warn(
-                    (
-                        f"This object ({self.__class__.__name__}) has a `predict` "
-                        "method which consumes metadata, but `fit_predict` does not "
-                        "forward metadata to `predict`. Please implement a custom "
-                        "`fit_predict` method to forward metadata to `predict` as well."
-                        "Alternatively, you can explicitly do `set_predict_request`"
-                        "and set all values to `False` to disable metadata routed to "
-                        "`predict`, if that's an option."
-                    ),
-                    UserWarning,
-                )
-
         # override for transductive outlier detectors like LocalOulierFactor
-        return self.fit(X, **kwargs).predict(X)
+        return self.fit(X).predict(X)
 
 
 class MetaEstimatorMixin:

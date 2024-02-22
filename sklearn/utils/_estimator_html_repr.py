@@ -190,35 +190,13 @@ def _write_estimator_html(
 
 _STYLE = """
 #$id {
-  --sklearn-color-text: black;
-  --sklearn-color-line: gray;
-  --sklearn-color-background: white;
-  --sklearn-color-background-box: #f0f8ff;
-  --sklearn-color-border-box: black;
-  --sklearn-color-icon: #696969;
-  --sklearn-color-active: #d4ebff;
-  --sklearn-color-highlight: #d4ebff;
-
-  @media (prefers-color-scheme: dark) {
-    --sklearn-color-text: white;
-    --sklearn-color-line: gray;
-    --sklearn-color-background: #111;
-    --sklearn-color-background-box: #424242;
-    --sklearn-color-border-box: white;
-    --sklearn-color-icon: #878787;
-    --sklearn-color-active: #616161;
-    --sklearn-color-highlight: #616161;
-  }
-}
-
-#$id {
-  color: var(--sklearn-color-text);
+  color: black;
 }
 #$id pre{
   padding: 0;
 }
 #$id div.sk-toggleable {
-  background-color: var(--sklearn-color-background);
+  background-color: white;
 }
 #$id label.sk-toggleable__label {
   cursor: pointer;
@@ -233,26 +211,26 @@ _STYLE = """
   content: "▸";
   float: left;
   margin-right: 0.25em;
-  color: var(--sklearn-color-icon);
+  color: #696969;
 }
 #$id label.sk-toggleable__label-arrow:hover:before {
-  color: var(--sklearn-color-text);
+  color: black;
 }
 #$id div.sk-estimator:hover label.sk-toggleable__label-arrow:before {
-  color: var(--sklearn-color-text);
+  color: black;
 }
 #$id div.sk-toggleable__content {
   max-height: 0;
   max-width: 0;
   overflow: hidden;
   text-align: left;
-  background-color: var(--sklearn-color-background-box);
+  background-color: #f0f8ff;
 }
 #$id div.sk-toggleable__content pre {
   margin: 0.2em;
-  color: var(--sklearn-color-text);
+  color: black;
   border-radius: 0.25em;
-  background-color: var(--sklearn-color-background-box);
+  background-color: #f0f8ff;
 }
 #$id input.sk-toggleable__control:checked~div.sk-toggleable__content {
   max-height: 200px;
@@ -263,10 +241,10 @@ _STYLE = """
   content: "▾";
 }
 #$id div.sk-estimator input.sk-toggleable__control:checked~label.sk-toggleable__label {
-  background-color: var(--sklearn-color-active);
+  background-color: #d4ebff;
 }
 #$id div.sk-label input.sk-toggleable__control:checked~label.sk-toggleable__label {
-  background-color: var(--sklearn-color-active);
+  background-color: #d4ebff;
 }
 #$id input.sk-hidden--visually {
   border: 0;
@@ -281,28 +259,28 @@ _STYLE = """
 }
 #$id div.sk-estimator {
   font-family: monospace;
-  background-color: var(--sklearn-color-background-box);
-  border: 1px dotted var(--sklearn-color-border-box);
+  background-color: #f0f8ff;
+  border: 1px dotted black;
   border-radius: 0.25em;
   box-sizing: border-box;
   margin-bottom: 0.5em;
 }
 #$id div.sk-estimator:hover {
-  background-color: var(--sklearn-color-highlight);
+  background-color: #d4ebff;
 }
 #$id div.sk-parallel-item::after {
   content: "";
   width: 100%;
-  border-bottom: 1px solid var(--sklearn-color-line);
+  border-bottom: 1px solid gray;
   flex-grow: 1;
 }
 #$id div.sk-label:hover label.sk-toggleable__label {
-  background-color: var(--sklearn-color-highlight);
+  background-color: #d4ebff;
 }
 #$id div.sk-serial::before {
   content: "";
   position: absolute;
-  border-left: 1px solid var(--sklearn-color-line);
+  border-left: 1px solid gray;
   box-sizing: border-box;
   top: 0;
   bottom: 0;
@@ -313,7 +291,7 @@ _STYLE = """
   display: flex;
   flex-direction: column;
   align-items: center;
-  background-color: var(--sklearn-color-background);
+  background-color: white;
   padding-right: 0.2em;
   padding-left: 0.2em;
   position: relative;
@@ -326,13 +304,13 @@ _STYLE = """
   display: flex;
   align-items: stretch;
   justify-content: center;
-  background-color: var(--sklearn-color-background);
+  background-color: white;
   position: relative;
 }
 #$id div.sk-item::before, #$id div.sk-parallel-item::before {
   content: "";
   position: absolute;
-  border-left: 1px solid var(--sklearn-color-line);
+  border-left: 1px solid gray;
   box-sizing: border-box;
   top: 0;
   bottom: 0;
@@ -344,7 +322,7 @@ _STYLE = """
   flex-direction: column;
   z-index: 1;
   position: relative;
-  background-color: var(--sklearn-color-background);
+  background-color: white;
 }
 #$id div.sk-parallel-item:first-child::after {
   align-self: flex-end;
@@ -358,11 +336,11 @@ _STYLE = """
   width: 0;
 }
 #$id div.sk-dashed-wrapped {
-  border: 1px dashed var(--sklearn-color-line);
+  border: 1px dashed gray;
   margin: 0 0.4em 0.5em 0.4em;
   box-sizing: border-box;
   padding-bottom: 0.4em;
-  background-color: var(--sklearn-color-background);
+  background-color: white;
 }
 #$id div.sk-label label {
   font-family: monospace;

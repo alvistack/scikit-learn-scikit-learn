@@ -9,6 +9,7 @@ from itertools import cycle, product
 import joblib
 import numpy as np
 import pytest
+from scipy.sparse import csc_matrix, csr_matrix
 
 from sklearn.base import BaseEstimator
 from sklearn.datasets import load_diabetes, load_iris, make_hastie_10_2
@@ -30,7 +31,6 @@ from sklearn.svm import SVC, SVR
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.utils import check_random_state
 from sklearn.utils._testing import assert_array_almost_equal, assert_array_equal
-from sklearn.utils.fixes import CSC_CONTAINERS, CSR_CONTAINERS
 
 rng = check_random_state(0)
 
@@ -83,9 +83,9 @@ def test_classification():
 
 
 @pytest.mark.parametrize(
-    "sparse_container, params, method",
+    "sparse_format, params, method",
     product(
-        CSR_CONTAINERS + CSC_CONTAINERS,
+        [csc_matrix, csr_matrix],
         [
             {
                 "max_samples": 0.5,
@@ -105,7 +105,7 @@ def test_classification():
         ["predict", "predict_proba", "predict_log_proba", "decision_function"],
     ),
 )
-def test_sparse_classification(sparse_container, params, method):
+def test_sparse_classification(sparse_format, params, method):
     # Check classification for various parameter settings on sparse input.
 
     class CustomSVC(SVC):
@@ -121,8 +121,8 @@ def test_sparse_classification(sparse_container, params, method):
         scale(iris.data), iris.target, random_state=rng
     )
 
-    X_train_sparse = sparse_container(X_train)
-    X_test_sparse = sparse_container(X_test)
+    X_train_sparse = sparse_format(X_train)
+    X_test_sparse = sparse_format(X_test)
     # Trained on sparse format
     sparse_classifier = BaggingClassifier(
         estimator=CustomSVC(kernel="linear", decision_function_shape="ovr"),
@@ -174,8 +174,7 @@ def test_regression():
             ).predict(X_test)
 
 
-@pytest.mark.parametrize("sparse_container", CSR_CONTAINERS + CSC_CONTAINERS)
-def test_sparse_regression(sparse_container):
+def test_sparse_regression():
     # Check regression for various parameter settings on sparse input.
     rng = check_random_state(0)
     X_train, X_test, y_train, y_test = train_test_split(
@@ -207,28 +206,29 @@ def test_sparse_regression(sparse_container):
         {"max_samples": 0.5, "bootstrap": True, "bootstrap_features": False},
     ]
 
-    X_train_sparse = sparse_container(X_train)
-    X_test_sparse = sparse_container(X_test)
-    for params in parameter_sets:
-        # Trained on sparse format
-        sparse_classifier = BaggingRegressor(
-            estimator=CustomSVR(), random_state=1, **params
-        ).fit(X_train_sparse, y_train)
-        sparse_results = sparse_classifier.predict(X_test_sparse)
+    for sparse_format in [csc_matrix, csr_matrix]:
+        X_train_sparse = sparse_format(X_train)
+        X_test_sparse = sparse_format(X_test)
+        for params in parameter_sets:
+            # Trained on sparse format
+            sparse_classifier = BaggingRegressor(
+                estimator=CustomSVR(), random_state=1, **params
+            ).fit(X_train_sparse, y_train)
+            sparse_results = sparse_classifier.predict(X_test_sparse)
 
-        # Trained on dense format
-        dense_results = (
-            BaggingRegressor(estimator=CustomSVR(), random_state=1, **params)
-            .fit(X_train, y_train)
-            .predict(X_test)
-        )
+            # Trained on dense format
+            dense_results = (
+                BaggingRegressor(estimator=CustomSVR(), random_state=1, **params)
+                .fit(X_train, y_train)
+                .predict(X_test)
+            )
 
-        sparse_type = type(X_train_sparse)
-        types = [i.data_type_ for i in sparse_classifier.estimators_]
+            sparse_type = type(X_train_sparse)
+            types = [i.data_type_ for i in sparse_classifier.estimators_]
 
-        assert_array_almost_equal(sparse_results, dense_results)
-        assert all([t == sparse_type for t in types])
-        assert_array_almost_equal(sparse_results, dense_results)
+            assert_array_almost_equal(sparse_results, dense_results)
+            assert all([t == sparse_type for t in types])
+            assert_array_almost_equal(sparse_results, dense_results)
 
 
 class DummySizeEstimator(BaseEstimator):

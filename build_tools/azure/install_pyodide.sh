@@ -15,6 +15,8 @@ pyodide build
 
 ls -ltrh dist
 
-# The Pyodide js library is needed by build_tools/azure/test_script_pyodide.sh
-# to run tests inside Pyodide
-npm install pyodide@$PYODIDE_VERSION
+pyodide venv pyodide-venv
+source pyodide-venv/bin/activate
+
+pip install dist/*.whl
+pip list

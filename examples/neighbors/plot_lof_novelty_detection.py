@@ -26,7 +26,6 @@ n_neighbors=20 appears to work well in general.
 """
 
 import matplotlib
-import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -72,7 +71,7 @@ plt.axis("tight")
 plt.xlim((-5, 5))
 plt.ylim((-5, 5))
 plt.legend(
-    [mlines.Line2D([], [], color="darkred"), b1, b2, c],
+    [a.collections[0], b1, b2, c],
     [
         "learned frontier",
         "training observations",

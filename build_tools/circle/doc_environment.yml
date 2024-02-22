@@ -8,11 +8,11 @@ dependencies:
   - numpy
   - blas
   - scipy
-  - cython
+  - cython<3.0.0
   - joblib
   - threadpoolctl
   - matplotlib
-  - pandas<2.1
+  - pandas
   - pyamg
   - pytest
   - pytest-xdist=2.5.0

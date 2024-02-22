@@ -1,51 +1,21 @@
-{{py:
-
-# Generated file: _kd_tree.pyx
-
-implementation_specific_values = [
-    # The values are arranged as follows:
-    #
-    #       name_suffix, INPUT_DTYPE_t, INPUT_DTYPE
-    #
-    ('64', 'float64_t', 'np.float64'),
-    ('32', 'float32_t', 'np.float32')
-]
-
 # By Jake Vanderplas (2013) <jakevdp@cs.washington.edu>
 # written for the scikit-learn project
 # License: BSD
 
-}}
+__all__ = ['KDTree']
 
+DOC_DICT = {'BinaryTree': 'KDTree', 'binary_tree': 'kd_tree'}
 
-__all__ = ['KDTree', 'KDTree64', 'KDTree32']
+VALID_METRICS = ['EuclideanDistance64', 'ManhattanDistance64',
+                 'ChebyshevDistance64', 'MinkowskiDistance64']
 
-{{for name_suffix, INPUT_DTYPE_t, INPUT_DTYPE in implementation_specific_values}}
-
-DOC_DICT{{name_suffix}} = {
-    'BinaryTree': 'KDTree{{name_suffix}}',
-    'binary_tree': 'kd_tree{{name_suffix}}',
-}
-
-VALID_METRICS{{name_suffix}} = [
-    'EuclideanDistance{{name_suffix}}',
-    'ManhattanDistance{{name_suffix}}',
-    'ChebyshevDistance{{name_suffix}}',
-    'MinkowskiDistance{{name_suffix}}'
-]
-
-{{endfor}}
 
 include "_binary_tree.pxi"
 
-{{for name_suffix, INPUT_DTYPE_t, INPUT_DTYPE in implementation_specific_values}}
-
-# Inherit KDTree{{name_suffix}} from BinaryTree{{name_suffix}}
-cdef class KDTree{{name_suffix}}(BinaryTree{{name_suffix}}):
-    __doc__ = CLASS_DOC.format(**DOC_DICT{{name_suffix}})
+# Inherit KDTree from BinaryTree
+cdef class KDTree(BinaryTree):
+    __doc__ = CLASS_DOC.format(**DOC_DICT)
     pass
-
-{{endfor}}
 
 
 # ----------------------------------------------------------------------
@@ -58,36 +28,27 @@ cdef class KDTree{{name_suffix}}(BinaryTree{{name_suffix}}):
 #   distance for the Euclidean metric is the squared-euclidean distance.
 #   For some metrics, the reduced distance is simply the distance.
 
-{{for name_suffix, INPUT_DTYPE_t, INPUT_DTYPE in implementation_specific_values}}
 
-cdef int allocate_data{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree,
-    intp_t n_nodes,
-    intp_t n_features,
-) except -1:
+cdef int allocate_data(BinaryTree tree, intp_t n_nodes,
+                       intp_t n_features) except -1:
     """Allocate arrays needed for the KD Tree"""
-    tree.node_bounds = np.zeros((2, n_nodes, n_features), dtype={{INPUT_DTYPE}})
+    tree.node_bounds = np.zeros((2, n_nodes, n_features), dtype=np.float64)
     return 0
 
 
-cdef int init_node{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree,
-    NodeData_t[::1] node_data,
-    intp_t i_node,
-    intp_t idx_start,
-    intp_t idx_end,
-) except -1:
+cdef int init_node(BinaryTree tree, NodeData_t[::1] node_data, intp_t i_node,
+                   intp_t idx_start, intp_t idx_end) except -1:
     """Initialize the node for the dataset stored in tree.data"""
     cdef intp_t n_features = tree.data.shape[1]
     cdef intp_t i, j
     cdef float64_t rad = 0
 
-    cdef {{INPUT_DTYPE_t}}* lower_bounds = &tree.node_bounds[0, i_node, 0]
-    cdef {{INPUT_DTYPE_t}}* upper_bounds = &tree.node_bounds[1, i_node, 0]
-    cdef const {{INPUT_DTYPE_t}}* data = &tree.data[0, 0]
-    cdef const intp_t* idx_array = &tree.idx_array[0]
+    cdef float64_t* lower_bounds = &tree.node_bounds[0, i_node, 0]
+    cdef float64_t* upper_bounds = &tree.node_bounds[1, i_node, 0]
+    cdef float64_t* data = &tree.data[0, 0]
+    cdef intp_t* idx_array = &tree.idx_array[0]
 
-    cdef const {{INPUT_DTYPE_t}}* data_row
+    cdef float64_t* data_row
 
     # determine Node bounds
     for j in range(n_features):
@@ -120,11 +81,8 @@ cdef int init_node{{name_suffix}}(
     return 0
 
 
-cdef float64_t min_rdist{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree,
-    intp_t i_node,
-    const {{INPUT_DTYPE_t}}* pt,
-) except -1 nogil:
+cdef float64_t min_rdist(BinaryTree tree, intp_t i_node,
+                         float64_t* pt) except -1 nogil:
     """Compute the minimum reduced-distance between a point and a node"""
     cdef intp_t n_features = tree.data.shape[1]
     cdef float64_t d, d_lo, d_hi, rdist=0.0
@@ -147,26 +105,16 @@ cdef float64_t min_rdist{{name_suffix}}(
     return rdist
 
 
-cdef float64_t min_dist{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree,
-    intp_t i_node,
-    const {{INPUT_DTYPE_t}}* pt,
-) except -1:
+cdef float64_t min_dist(BinaryTree tree, intp_t i_node, float64_t* pt) except -1:
     """Compute the minimum distance between a point and a node"""
     if tree.dist_metric.p == INF:
-        return min_rdist{{name_suffix}}(tree, i_node, pt)
+        return min_rdist(tree, i_node, pt)
     else:
-        return pow(
-            min_rdist{{name_suffix}}(tree, i_node, pt),
-            1. / tree.dist_metric.p
-        )
+        return pow(min_rdist(tree, i_node, pt), 1. / tree.dist_metric.p)
 
 
-cdef float64_t max_rdist{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree,
-    intp_t i_node,
-    const {{INPUT_DTYPE_t}}* pt,
-) except -1:
+cdef float64_t max_rdist(BinaryTree tree,
+                         intp_t i_node, float64_t* pt) except -1:
     """Compute the maximum reduced-distance between a point and a node"""
     cdef intp_t n_features = tree.data.shape[1]
 
@@ -186,28 +134,16 @@ cdef float64_t max_rdist{{name_suffix}}(
     return rdist
 
 
-cdef float64_t max_dist{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree,
-    intp_t i_node,
-    const {{INPUT_DTYPE_t}}* pt,
-) except -1:
+cdef float64_t max_dist(BinaryTree tree, intp_t i_node, float64_t* pt) except -1:
     """Compute the maximum distance between a point and a node"""
     if tree.dist_metric.p == INF:
-        return max_rdist{{name_suffix}}(tree, i_node, pt)
+        return max_rdist(tree, i_node, pt)
     else:
-        return pow(
-            max_rdist{{name_suffix}}(tree, i_node, pt),
-            1. / tree.dist_metric.p
-        )
+        return pow(max_rdist(tree, i_node, pt), 1. / tree.dist_metric.p)
 
 
-cdef inline int min_max_dist{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree,
-    intp_t i_node,
-    const {{INPUT_DTYPE_t}}* pt,
-    float64_t* min_dist,
-    float64_t* max_dist,
-) except -1 nogil:
+cdef inline int min_max_dist(BinaryTree tree, intp_t i_node, float64_t* pt,
+                             float64_t* min_dist, float64_t* max_dist) except -1 nogil:
     """Compute the minimum and maximum distance between a point and a node"""
     cdef intp_t n_features = tree.data.shape[1]
 
@@ -241,12 +177,8 @@ cdef inline int min_max_dist{{name_suffix}}(
     return 0
 
 
-cdef inline float64_t min_rdist_dual{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree1,
-    intp_t i_node1,
-    BinaryTree{{name_suffix}} tree2,
-    intp_t i_node2,
-) except -1:
+cdef inline float64_t min_rdist_dual(BinaryTree tree1, intp_t i_node1,
+                                     BinaryTree tree2, intp_t i_node2) except -1:
     """Compute the minimum reduced distance between two nodes"""
     cdef intp_t n_features = tree1.data.shape[1]
 
@@ -276,24 +208,15 @@ cdef inline float64_t min_rdist_dual{{name_suffix}}(
     return rdist
 
 
-cdef inline float64_t min_dist_dual{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree1,
-    intp_t i_node1,
-    BinaryTree{{name_suffix}} tree2,
-    intp_t i_node2,
-) except -1:
+cdef inline float64_t min_dist_dual(BinaryTree tree1, intp_t i_node1,
+                                    BinaryTree tree2, intp_t i_node2) except -1:
     """Compute the minimum distance between two nodes"""
-    return tree1.dist_metric._rdist_to_dist(
-        min_rdist_dual{{name_suffix}}(tree1, i_node1, tree2, i_node2)
-    )
+    return tree1.dist_metric._rdist_to_dist(min_rdist_dual(tree1, i_node1,
+                                                           tree2, i_node2))
 
 
-cdef inline float64_t max_rdist_dual{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree1,
-    intp_t i_node1,
-    BinaryTree{{name_suffix}} tree2,
-    intp_t i_node2,
-) except -1:
+cdef inline float64_t max_rdist_dual(BinaryTree tree1, intp_t i_node1,
+                                     BinaryTree tree2, intp_t i_node2) except -1:
     """Compute the maximum reduced distance between two nodes"""
     cdef intp_t n_features = tree1.data.shape[1]
 
@@ -317,20 +240,8 @@ cdef inline float64_t max_rdist_dual{{name_suffix}}(
     return rdist
 
 
-cdef inline float64_t max_dist_dual{{name_suffix}}(
-    BinaryTree{{name_suffix}} tree1,
-    intp_t i_node1,
-    BinaryTree{{name_suffix}} tree2,
-    intp_t i_node2,
-) except -1:
+cdef inline float64_t max_dist_dual(BinaryTree tree1, intp_t i_node1,
+                                    BinaryTree tree2, intp_t i_node2) except -1:
     """Compute the maximum distance between two nodes"""
-    return tree1.dist_metric._rdist_to_dist(
-        max_rdist_dual{{name_suffix}}(tree1, i_node1, tree2, i_node2)
-    )
-
-{{endfor}}
-
-
-class KDTree(KDTree64):
-    __doc__ = CLASS_DOC.format(BinaryTree="KDTree")
-    pass
+    return tree1.dist_metric._rdist_to_dist(max_rdist_dual(tree1, i_node1,
+                                                           tree2, i_node2))

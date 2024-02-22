@@ -19,7 +19,7 @@ from scipy.sparse import csr_matrix, issparse
 
 from ..base import BaseEstimator, MultiOutputMixin, is_classifier
 from ..exceptions import DataConversionWarning, EfficiencyWarning
-from ..metrics import DistanceMetric, pairwise_distances_chunked
+from ..metrics import pairwise_distances_chunked
 from ..metrics._pairwise_distances_reduction import (
     ArgKmin,
     RadiusNeighbors,
@@ -414,11 +414,7 @@ class NeighborsBase(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         if self.algorithm == "auto":
             if self.metric == "precomputed":
                 alg_check = "brute"
-            elif (
-                callable(self.metric)
-                or self.metric in VALID_METRICS["ball_tree"]
-                or isinstance(self.metric, DistanceMetric)
-            ):
+            elif callable(self.metric) or self.metric in VALID_METRICS["ball_tree"]:
                 alg_check = "ball_tree"
             else:
                 alg_check = "brute"
@@ -434,9 +430,7 @@ class NeighborsBase(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                     "in very poor performance."
                     % self.metric
                 )
-        elif self.metric not in VALID_METRICS[alg_check] and not isinstance(
-            self.metric, DistanceMetric
-        ):
+        elif self.metric not in VALID_METRICS[alg_check]:
             raise ValueError(
                 "Metric '%s' not valid. Use "
                 "sorted(sklearn.neighbors.VALID_METRICS['%s']) "
@@ -569,11 +563,9 @@ class NeighborsBase(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             if self.algorithm not in ("auto", "brute"):
                 warnings.warn("cannot use tree with sparse input: using brute force")
 
-            if (
-                self.effective_metric_ not in VALID_METRICS_SPARSE["brute"]
-                and not callable(self.effective_metric_)
-                and not isinstance(self.effective_metric_, DistanceMetric)
-            ):
+            if self.effective_metric_ not in VALID_METRICS_SPARSE[
+                "brute"
+            ] and not callable(self.effective_metric_):
                 raise ValueError(
                     "Metric '%s' not valid for sparse input. "
                     "Use sorted(sklearn.neighbors."

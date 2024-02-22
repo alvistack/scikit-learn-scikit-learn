@@ -12,6 +12,7 @@ from tempfile import mkdtemp
 
 import numpy as np
 import pytest
+from scipy import sparse
 from scipy.cluster import hierarchy
 from scipy.sparse.csgraph import connected_components
 
@@ -47,7 +48,6 @@ from sklearn.utils._testing import (
     create_memmap_backed_data,
     ignore_warnings,
 )
-from sklearn.utils.fixes import LIL_CONTAINERS
 
 
 def test_linkage_misc():
@@ -176,8 +176,7 @@ def test_agglomerative_clustering_distances(
         assert not hasattr(clustering, "distances_")
 
 
-@pytest.mark.parametrize("lil_container", LIL_CONTAINERS)
-def test_agglomerative_clustering(global_random_seed, lil_container):
+def test_agglomerative_clustering(global_random_seed):
     # Check that we obtain the correct number of clusters with
     # agglomerative clustering.
     rng = np.random.RandomState(global_random_seed)
@@ -219,7 +218,7 @@ def test_agglomerative_clustering(global_random_seed, lil_container):
         # Check that we raise a TypeError on dense matrices
         clustering = AgglomerativeClustering(
             n_clusters=10,
-            connectivity=lil_container(connectivity.toarray()[:10, :10]),
+            connectivity=sparse.lil_matrix(connectivity.toarray()[:10, :10]),
             linkage=linkage,
         )
         with pytest.raises(ValueError):

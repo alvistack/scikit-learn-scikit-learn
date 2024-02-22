@@ -22,8 +22,7 @@ from ..base import (
     TransformerMixin,
     _fit_context,
 )
-from ..utils import _array_api, check_array
-from ..utils._array_api import get_namespace
+from ..utils import check_array
 from ..utils._param_validation import Interval, Options, StrOptions, validate_params
 from ..utils.extmath import _incremental_mean_and_var, row_norms
 from ..utils.sparsefuncs import (
@@ -104,18 +103,16 @@ def _handle_zeros_in_scale(scale, copy=True, constant_mask=None):
         if scale == 0.0:
             scale = 1.0
         return scale
-    # scale is an array
-    else:
-        xp, _ = get_namespace(scale)
+    elif isinstance(scale, np.ndarray):
         if constant_mask is None:
             # Detect near constant values to avoid dividing by a very small
             # value that could lead to surprising results and numerical
             # stability issues.
-            constant_mask = scale < 10 * xp.finfo(scale.dtype).eps
+            constant_mask = scale < 10 * np.finfo(scale.dtype).eps
 
         if copy:
             # New array to avoid side-effects
-            scale = xp.asarray(scale, copy=True)
+            scale = scale.copy()
         scale[constant_mask] = 1.0
         return scale
 
@@ -293,8 +290,8 @@ class MinMaxScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
     This transformation is often used as an alternative to zero mean,
     unit variance scaling.
 
-    `MinMaxScaler` doesn't reduce the effect of outliers, but it linearly
-    scales them down into a fixed range, where the largest occurring data point
+    `MinMaxScaler` doesn't reduce the effect of outliers, but it linearily
+    scales them down into a fixed range, where the largest occuring data point
     corresponds to the maximum value and the smallest one corresponds to the
     minimum value. For an example visualization, refer to :ref:`Compare
     MinMaxScaler with other scalers <plot_all_scaling_minmax_scaler_section>`.
@@ -472,24 +469,22 @@ class MinMaxScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
                 "Consider using MaxAbsScaler instead."
             )
 
-        xp, _ = get_namespace(X)
-
         first_pass = not hasattr(self, "n_samples_seen_")
         X = self._validate_data(
             X,
             reset=first_pass,
-            dtype=_array_api.supported_float_dtypes(xp),
+            dtype=FLOAT_DTYPES,
             force_all_finite="allow-nan",
         )
 
-        data_min = _array_api._nanmin(X, axis=0)
-        data_max = _array_api._nanmax(X, axis=0)
+        data_min = np.nanmin(X, axis=0)
+        data_max = np.nanmax(X, axis=0)
 
         if first_pass:
             self.n_samples_seen_ = X.shape[0]
         else:
-            data_min = xp.minimum(self.data_min_, data_min)
-            data_max = xp.maximum(self.data_max_, data_max)
+            data_min = np.minimum(self.data_min_, data_min)
+            data_max = np.maximum(self.data_max_, data_max)
             self.n_samples_seen_ += X.shape[0]
 
         data_range = data_max - data_min
@@ -517,12 +512,10 @@ class MinMaxScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self)
 
-        xp, _ = get_namespace(X)
-
         X = self._validate_data(
             X,
             copy=self.copy,
-            dtype=_array_api.supported_float_dtypes(xp),
+            dtype=FLOAT_DTYPES,
             force_all_finite="allow-nan",
             reset=False,
         )
@@ -530,7 +523,7 @@ class MinMaxScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
         X *= self.scale_
         X += self.min_
         if self.clip:
-            xp.clip(X, self.feature_range[0], self.feature_range[1], out=X)
+            np.clip(X, self.feature_range[0], self.feature_range[1], out=X)
         return X
 
     def inverse_transform(self, X):
@@ -548,13 +541,8 @@ class MinMaxScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self)
 
-        xp, _ = get_namespace(X)
-
         X = check_array(
-            X,
-            copy=self.copy,
-            dtype=_array_api.supported_float_dtypes(xp),
-            force_all_finite="allow-nan",
+            X, copy=self.copy, dtype=FLOAT_DTYPES, force_all_finite="allow-nan"
         )
 
         X -= self.min_
@@ -1094,7 +1082,7 @@ class MaxAbsScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
 
     This scaler can also be applied to sparse CSR or CSC matrices.
 
-    `MaxAbsScaler` doesn't reduce the effect of outliers; it only linearly
+    `MaxAbsScaler` doesn't reduce the effect of outliers; it only linearily
     scales them down. For an example visualization, refer to :ref:`Compare
     MaxAbsScaler with other scalers <plot_all_scaling_max_abs_scaler_section>`.
 
@@ -1216,14 +1204,12 @@ class MaxAbsScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
         self : object
             Fitted scaler.
         """
-        xp, _ = get_namespace(X)
-
         first_pass = not hasattr(self, "n_samples_seen_")
         X = self._validate_data(
             X,
             reset=first_pass,
             accept_sparse=("csr", "csc"),
-            dtype=_array_api.supported_float_dtypes(xp),
+            dtype=FLOAT_DTYPES,
             force_all_finite="allow-nan",
         )
 
@@ -1231,12 +1217,12 @@ class MaxAbsScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
             mins, maxs = min_max_axis(X, axis=0, ignore_nan=True)
             max_abs = np.maximum(np.abs(mins), np.abs(maxs))
         else:
-            max_abs = _array_api._nanmax(xp.abs(X), axis=0)
+            max_abs = np.nanmax(np.abs(X), axis=0)
 
         if first_pass:
             self.n_samples_seen_ = X.shape[0]
         else:
-            max_abs = xp.maximum(self.max_abs_, max_abs)
+            max_abs = np.maximum(self.max_abs_, max_abs)
             self.n_samples_seen_ += X.shape[0]
 
         self.max_abs_ = max_abs
@@ -1257,15 +1243,12 @@ class MaxAbsScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
             Transformed array.
         """
         check_is_fitted(self)
-
-        xp, _ = get_namespace(X)
-
         X = self._validate_data(
             X,
             accept_sparse=("csr", "csc"),
             copy=self.copy,
             reset=False,
-            dtype=_array_api.supported_float_dtypes(xp),
+            dtype=FLOAT_DTYPES,
             force_all_finite="allow-nan",
         )
 
@@ -1289,14 +1272,11 @@ class MaxAbsScaler(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
             Transformed array.
         """
         check_is_fitted(self)
-
-        xp, _ = get_namespace(X)
-
         X = check_array(
             X,
             accept_sparse=("csr", "csc"),
             copy=self.copy,
-            dtype=_array_api.supported_float_dtypes(xp),
+            dtype=FLOAT_DTYPES,
             force_all_finite="allow-nan",
         )
 

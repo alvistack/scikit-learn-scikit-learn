@@ -314,9 +314,7 @@ class _NanConstraint(_Constraint):
     """Constraint representing the indicator `np.nan`."""
 
     def is_satisfied_by(self, val):
-        return (
-            not isinstance(val, Integral) and isinstance(val, Real) and math.isnan(val)
-        )
+        return isinstance(val, Real) and math.isnan(val)
 
     def __str__(self):
         return "numpy.nan"
@@ -480,7 +478,7 @@ class Interval(_Constraint):
             )
 
     def __contains__(self, val):
-        if not isinstance(val, Integral) and np.isnan(val):
+        if np.isnan(val):
             return False
 
         left_cmp = operator.lt if self.closed in ("left", "both") else operator.le
