@@ -1,0 +1,5 @@
+python-scikit-learn source: file-without-copyright-information
+python-scikit-learn source: no-debian-changes
+python-scikit-learn source: source-contains-prebuilt-windows-binary
+python-scikit-learn source: source-is-missing
+python-scikit-learn source: source-package-encodes-python-version
