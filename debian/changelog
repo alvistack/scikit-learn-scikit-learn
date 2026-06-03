@@ -1,0 +1,5 @@
+python-scikit-learn (100:1.9.0-1) UNRELEASED; urgency=medium
+
+  * https://github.com/scikit-learn/scikit-learn/releases/tag/1.9.0
+
+ -- Wong Hoi Sing Edison <hswong3i@pantarei-design.com>  Wed, 03 Jun 2026 11:52:38 +0800
